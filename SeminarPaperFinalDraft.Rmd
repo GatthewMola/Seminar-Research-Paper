@@ -1,0 +1,501 @@
+---
+title: The Effect of the Stringency of Environmental Regulations on Greenhouse Gas
+  Emissions in Developing Countries
+author: "Matthew Gola"
+date: "4/12/2021"
+output: html_document
+number_sections: true
+indent: true
+header-includes:
+  - \usepackage{setspace} \doublespacing
+font_size: 12
+bibliography: SeminarReferences.bib
+
+abstract: In this paper, I examine the relationship between environmental regulations deployed by country governments on said country's total greenhouse gas emissions. In order to understand this relationship fully, I reviewed and critiqued relevant research regarding the Environmental Kuznets Curve Hypothesis and the Pollution Haven Hypothesis. Furthermore, I reviewed research attempting to quantify the relative stringency of country or state environmental regulations through instrumental variables. Using WDI data from 2003-2012, I observe the effect of certain economic indicators, as well as specific regulatory proxies, on the total greenhouse gas emissions in developing countries. Developing countries were used for this logitudinal study as they developing economies tend to have higher emissions rates and a lower number of individual environmental regulations. In these economies, economic growth is genrally prioritized over environmental quality. This study attempts to determine whether or not the number of or relative stringency of environmental regulations in developing countries has any effect on their respective rates of greenhouse gas emissions. I modeled this effect through an omitted variable and multivariate pooled least squares regression with two-way fixed effects using the individual countries and the years 2003-2012 as an index. I also ran two other omitted and multivariate regressions including lagged variables. The omitted variable regression displayed small, negative connections between log total greenhouse gas emissions and log GDP per Capita, PPP, as well as net inflows of foreign direct investment. The regression also displayed a small, positive connection between log total greenhouse gas emissions and trade as a percentage of GDP. Neither coefficients were significant to any degree. The multivariate regression added three covariates as proxies for the stringency of environmental regulations. While two of the covariates had a negative effect on emissions, the third had a larger, positive effect.
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, fig.height = 2.5)
+library(tidyverse)
+library(ggplot2)
+library(reshape)
+library(MASS)
+library(huxtable)
+library(float)
+library(ggdag)
+library(plm)
+```
+
+```{r Dataset Creation, include=FALSE}
+alldataclean <- read.csv("EconSeminarResearchPaperWorkbookClean.csv")
+
+logalldatanew <- alldataclean %>%
+  mutate(TGEp = (TGE / 10000)) %>%
+  mutate(GPPPp = (GPPP / 1000))
+```
+
+```{r Lag Effects, include=FALSE}
+library(Hmisc)
+logalldatalag <- logalldatanew %>%
+  mutate(lagGPPPp = Lag(GPPPp, 1),
+         lagTGDP = Lag(TGDP, 1))
+```
+
+```{r Isolating Country Effects, include=FALSE}
+means_countries <- logalldatanew %>%
+        group_by(Country) %>%
+        mutate(avg_TGEp = mean(TGEp),
+                  avg_FDI = mean(FDI),
+                  avg_GPPPp = mean(GPPPp),
+                  avg_TGDP = mean(TGDP),
+                  avg_RQR = mean(RQR),
+                  avg_EFT = mean(EFT),
+                  avg_FFEC = mean(FFEC),
+                  avg_REO = mean(REO),
+                  avg_REC = mean(REC))
+```
+
+```{r Isolating Year Effects, include=FALSE}
+means_years <- logalldatanew %>%
+        group_by(Years) %>%
+        mutate(avg_TGEp = mean(TGEp),
+                  avg_FDI = mean(FDI),
+                  avg_GPPPp = mean(GPPPp),
+                  avg_TGDP = mean(TGDP),
+                  avg_RQR = mean(RQR),
+                  avg_EFT = mean(EFT),
+                  avg_FFEC = mean(FFEC),
+                  avg_REO = mean(REO),
+                  avg_REC = mean(REC))
+```
+
+```{r Two-Way Fixed Effects De-Meaning, include=FALSE}
+logalldataiso <- logalldatanew %>%
+  mutate(deFDI = (FDI - mean(FDI)),
+         deTGDP = (TGDP - mean(TGDP)),
+         deRQR = (RQR - mean(RQR)),
+         deEFT = (EFT - mean(EFT)),
+         deFFEC = (FFEC - mean(FFEC)),
+         deREO = (REO - mean(REO)),
+         deREC = (REC - mean(REC)),
+         deTGEp = (TGEp - mean(TGEp)),
+         deGPPPp = (GPPPp - mean(GPPPp)))
+```
+
+\clearpage
+
+# Introduction
+
+Climate change due to global warming has quickly become one of the most pressing issues of our time, not only for scientists in multiple fields, but the social and financial sciences as well. Understanding how to ameliorate the problems caused by global warming, such as carbon capture technology to undo the emissions we already produce as well as green energy technology to reduce the production of emissions, is a step in the right direction. However, studying and creating these technologies can only go so far, the act of implementation is an entirely different obstacle. Current energy production as well as key industries in dozens of developing, transitioning, and developed countries are lucrative businesses depended upon by producers and consumers alike. Fossil fuel energy production and primary source pollution from specific industries such as manufacturing, construction, and logistics has increased the extent of climate change and exacerbated the problems caused by global warming, especially in developing nations. Convincing, enticing, or forcing these groups to change their industries or give them up all together in the name of a cleaner environment is a monumental task that some feel belongs to the government, others, to the whim of the market.
+
+In this paper, I consider the task of encouraging and incentivizing firms to consider and internalize their impact on environmental quality to be solely in the hands of the government in the form of environmental regulations. I look to determine whether environmental regulations and their relative stringency have any effect on environmental regulation in developing countries. Through an assessment of relevant theories on environmental degradation's connection to income per capita and high-polluting firms in developed nations, I aim to understand why developing countries emphasize economic growth over their own environmental quality. I attempt to quantify the stringency of environmental regulations in developing countries through a series of proxy variables which measure certain environmental and economic indicators which would be most affected by changes in environmental regulations. Through this economic model, I discover the challenges and issues inherent to the quantification of regulatory stringency, from past literature to my own research. I find that far more research is necessary to fully understand environmental regulations' true effect on environmental degradation in developing countries.
+
+# Literature Review
+
+The causes of environmental degradation within all countries and levels of economy hinges on several concepts and theories. While I believe that many of these causal relationships cannot be glossed over or outright ignored, the literature reviewed for this paper focused on two major concepts which aim to center the role of environmental regulations (or a lack thereof) in the measure of environmental degradation. The Environmental Kuznets Curve Hypothesis (EKC) and the Pollution Haven Hypothesis (PHH) describe two major theories for the rise or fall of environmental degradation (i.e. greenhouse gas emissions such as carbon dioxide from primary and secondary sources) in developed and developing economies.
+
+The Kuznets Curve hypothesis began as a model for understanding the relationship between economic growth in the form of income per capita and income inequality as measured by percentage share of US national income. The theory suggests that as an economy grows in terms of general wealth, income inequality will rise to a certain threshold and then begin to decline. The Environmental Kuznets Curve adheres to the same general idea as the original curve, however, income inequality is replaced by general environmental quality, normally in the form of greenhouse gas emissions. Thus, the theory argues as income per capita increases, environmental degradation in the form of emissions increases to a certain threshold then begins to decline as income continues to rise.
+
+The implications for the EKC rely mainly on economic inferences. Low income per capita seen in developing economies can be attributed to low levels of economic activity, namely in high-pollution industries such as manufacturing and energy production. Economic activity in developing economies is generally related to subsistence level agriculture and small-scale trade. Such pre-industrial economic activities are generally clean and do not produce high levels of pollutants. As an economy develops further, increasing trade and taking steps to industrialize, higher levels of pollutants are expected as these activities produce far more emissions than small-scale agriculture.
+
+Panayotou suggests, "At higher levels of development, structural change towards information-intensive industries and services, coupled with increased environmental awareness, enforcement of environmental regulations, better technology and higher environmental expenditures, result in leveling off and gradual decline of environmental degradation," [@SternCommonBarbier1996]. Thus, economic growth is the means to environmental improvement.
+
+Furthermore, Panayotou argues, "As incomes rise, the demand for improvements in environmental quality will increase, as will the resources available for investment," [@SternCommonBarbier1996].
+
+Other economists posited similar arguments for the advancement of the EKC at the end of the 20th Century. Beckerman argues, "Furthermore there is clear evidence that, although economic growth leads to environmental degradation in the early stages of the process, in the end the best - and probably the only - way to attain a decent environment in most countries is to become rich," [@SternCommonBarbier1996].
+
+However, other studies performed in this era of environmental economics highlighted the clear shortcomings of the model. Research performed by economists Shafik and Bandyopadhyay (1992), Cropper and Griffiths (1994), and Grossman and Krueger (1994) describe the EKC's inability accurately return an inverted U-shaped model for all pollutant types and income levels. While specific pollutants such as quanities of sulfur dioxide, suspensed particulate matter, and fecal coliform tend to follow the Kuznetz Curve, other more macro forms of pollution, namely carbon dioxide released through deforestation, do not follow the curve at all [@SternCommonBarbier1996]. Furthermore, lack of clean water and urban sanitation were found to decline uniformly with increasing income, and over time [@SternCommonBarbier1996]. Though economic growth at middle-income levels would imporve environmental quality, growth at high-income levels would be detrimental [@SternCommonBarbier1996].
+
+Shafik and Bandyopadhyay summarize, "It is possible to 'grow out of' some environmental problems, but there is nothing automatic about doing so. Action tends to be taken where there are generalized local costs and substantial private and social benefits," [@SternCommonBarbier1996]. Such action may exist in the form of environmental regulations.
+
+The issue of environmental regulations and their relative stringency is related primarily to the Pollution Haven Hypothesis. The PHH suggests that developed countries will tend to set up factories and offices in developing countries as they offer the cheapest resources and labor and are generally the most accepting of foreign ventures. However, this acceptance of foreign investments comes at the cost of "environmentally unsound practices" [@LevinsonScott2008] as developing countries tend to have less stringent environmental regulations. "Emerging economies are less concerned about the relationship between trade openness and environmental quality," [@SternCommonBarbier1996]. The want and need for economic growth in a developing economy generally outweighs the want and need for environmental quality during policy debates. Developed economies tend to have more stringent environmental regulations as they can afford to lose the economic growth and production of firms taking their high-polluting factories abroad, therefore increasing their environmental quality [@Görüs2017]. This phenomenon creates a feedback loop. Companies from developed nations continue to locate or relocate to countries with the least stringent environmental regulations, increasing the incentive for other developing nations their relative stringency to attract foreign investment. Thus, low environmental regulation has a competitive advantage in the production of pollution-intensive products, increasing exports and reducing imports of such products [@MillimetRoy2011].
+
+The EKC can then be seen as a mirror of the PHH. As income per capita rises in developed countries, they can afford to increase environmental quality by employing more stringent environmental regulations, thus forcing high-polluting firms to move their business to countries with less stringent environmental regulations. This increase in foreign investment and trade increases the income per capita of the developing economy while also increasing environmental degradation. If the EKC is to remain accurate, these developing economies would eventually grow to a level where they can afford to increase stringency of the environmental regulations to decrease their environmental degradation. However, few studies of this phenomenon occurring in the developing economies exist with strong results.
+
+Because the consequences and ramifications of environmental regulations and policies are so pertinent, there is a vast amount of literature on the topic. However, studies attempting to measure their relative stringency and their effect on pollutant levels lack clarity [@ShahbazEtAl2014]. The suspect nature of these studies' economic models and the lack of significance in their results can be attributed to the issues related to the measurement and/or quantification of the stringency of environmental regulations. General consensus suggests the chief challenge of measurement is related to data collection, meaning that, had appropriate agencies been given the right resources, they could simply collect the necessary information [@BrunelLevinson2016]. However, the true challenges of measurement are deeper, econometric issues.
+
+Most glaringly, data on environmental regulations is multidimensional. Regulations cannot be easily measured by a single measure of stringency. This problem is inherent to the solution regulations hope to be. Not all pollutants can be curbed in the same way. A relatively stringent regulation curbing primary sources of air pollutants will likely have little to no affect on primary sources of water pollutants, unless they target specific industries which create primary sources of each [@MillimetRoy2008]. Furthermore, regulations are only effective if they are enforced. A large amount of stringent regulations can do nothing on their own to curb emissions other than set standards.
+
+In relation to multidimensionality, data on environmental regulations also experiences simultaneity. While regulations are meant to affect emissions levels, emissions levels are also a factor in determining the stringency of regulations. For example, jurisdictions with the most serious pollution problems may impose the most stringent regulations. Furthermore, regulatory stringency may also affect labor demand, trade, and economic growth. However, these environmental and economic variables may also have an affect on pollution levels. Therefore, these environmental and economic conditions may be influnecing the stringency of regulations even as researchers are trying to measure the opposite causality [@BrunelLevinson2016]. Such a phenomenon makes it difficult to ascertain the exact effect of the stringency of regulations on pollution levels.
+
+Two more obscure challenges to measuring stringency occur in the industrial composition of the respective nation and capital vintage of polluting industries. In places where the mix of industrials is more pollution-intensive, the average business automatically faces more stringent regulations [@BrunelLevinson2016]. For instance, in two states employing identical environmental regulations but houses firms producing far more pollution than the other, the environmental costs facing the more polluting state will be higher. This phenomenon is troubling as many studies on environmental regulations utilize abatement costs as a measure of stringency. Furthermore, regulatory standards are typically stricter for newer sources of pollution, which may result in firms keeping older plants in operation longer as they are "grandfathered" into the new regulations. Keeping these higher-polluting plants open longer negatively affects the environment, the economy, and measures of regulatory stringency. Firms have an incentive to create no new development as they experience far lower abatement costs for the grandfathered plants. "A strict vintage-differentiated regulation that deters new investment in cleaner production might be misinterpreted as a lack of stringency because emissions from existing production would remain high," [@BrunelLevinson2016].
+
+Solutions to these measurement challenges, however, have been attempted and studied. Direct assessments of regulation offers an alternative approach to measurement which avoids some of the major challenges facing the quantifier of abatement costs. However, such regulation-based measures also face the challenges of multidimensionality and simultaneity. Therefore, studies attempting the approach ask narrow questions about particular pollutants and utilize instrumental variables.
+
+Composite indexes are another promising quantifier of stringency as they attempt to measure the stringency of regulations through various proxies. Composite indexes avoid much of the problem of multidimensionality but can often times be arbitrary in their proxy selection. Early research examples include using the voting records of US state's congressional delegations [@BrunelLevinson2016] and counts of the number of statutes each state has from a list of fifty common environmental laws [@BrunelLevinson2016].
+
+To avoid the issues of multidimensionality and simultaneity much new research utilizing proxy variables focuses on emissions, pollution, and/or energy use. While this approach may seem counter intuitive when considering the relationship between environmental regulations and these specific variables, the results can be promising depending on the context. Studies such as Smarzynska and Wei (2004) and Gollop and Roberts (1983) use declines and in carbon dioxide, lead, and water pollution as a share of GDP and fifty-six US electric utilities respectively to measure relative regulatory stringency [@BrunelLevinson2016]. Such studies would be difficult to extrapolate to other industries or countries but offered significant results on their respective datasets. While such an approach may still leave an alarming level of exogenous variables in the error term, it offers an enticing alternative to other measurement approaches which manages to avoid or effectively account for certain measurement challenges.
+
+\clearpage
+
+# Economic Model
+
+The economic model I propose in this paper directly directly draws from the models proposed by the Environmental Kuznets Curve Hypothesis and the Pollution Haven Hypothesis. In developing countries, energy consumption - especially in high-polluting industries such as manufacturing and resource development - is very high. Economic growth is prioritized over environmental quality. This phenomenon can be seen in the lefthand side of the Kuznets Curve, as economic growth rises, so too does environmental degradation. Furthermore, as economic growth rises, so too does trade openness. However, trade liberalization brings it's own benefits and drawbacks. Open trade allows far more beneficial business to occur within the country, increasing the economy's access to more effective and productive technology and allows citizen's the ability to earn higher wages and attain a higher standard of living.
+
+However, this liberalization also allows bad foreign actors to bring their high-polluting factories and offices into developing countries in the name of economic growth. This represents the Pollution Haven Hypothesis. As developed economies continue to grow economically, they consider their impact on their environment more and more as they have the economic standing to afford it. This leads developed governments to increase the number and stringency of environmental regulations to decrease their production of domestic emissions. However, these regulations generally force high-polluting firms to look elsewhere for their own growth, especially to areas of significantly low environmental regulations. Thus, developing countries with competitively low numbers and stringency of environmental regulations will most likely experience a greater total amount of greenhouse gas emissions.
+
+Furthermore, these competitive developing economies will most likely experience a greater amount trade, foreign direct investment, and GDP per capita. More stringent regulations generally set lower caps on emission standards and impose greater penalties on offending firms. These characteristics would disincentivize firms to produce pollutants as heavily as they normally would have under less stringent regulations.
+
+The model is also focused on determining whether it is necessary for environmental regulations to protect environmental quality in emerging economies. It investigates whether the market can naturally adopt cleaner technologies simply through economic growth and inadvertently decrease environmental degradation. Because of the inherent simultaneity of environmental regulations, their absence in developing countries may a direct response to the already relatively low levels of primary pollutants being produced by domestic industries. Environmental regulations may not be necessary to decrease levels of degradation in developing countries where high-polluting industries do not yet exist. Therefore, a moderate rate of economic growth may still be attained with relatively lenient regulations and little impact on environmental quality.
+
+I test this alternative hypothesis - $\beta_{4,5,6} < {H}_0$ - against the null hypothesis ${H}_0: \beta_{4,5,6} = 0$. This meaning, I believe the stringency of environmental regulations has a negative effect on environmental degradation in the form of total greenhouse gas emissions.
+
+Figure 1 outlines the DAG diagram describing the causal relationships between the specific variables of the economic model.
+
+# Empirical Strategy
+
+## Data Description
+
+To estimate that effect of the stringency of environmental regulations on total greenhouse gas emissions in developing countries, I designed a group of panel data representing 10 developing countries with varying numbers and stringency of environmental regulations as well as diverse levels of GDP. Table 1 describes the the variables I chose for the omitted variable regression and the covariates for the multivariate regression. All data are collected from the World Development Indicators data catalog supported by the World Bank. The World Bank's collection of development indicators is compiled from "officially-recognized international sources" and presents "the most current and accurate global development data available" [@WorldBank]. The countries chosen for the panel data include Bolivia, Brazil, Egypt, India, Indonesia, Kenya, Pakistan, Philippines, Sri Lanka, Vietnam. To decrease the effect of multidimensionality and simultaneity on my data, the developing countries chosen for the dataset are from several different parts of the world, each with differing key industries and openness of trade.
+
+The proxy variables utilized for the quantification of regulatory stringency were so chosen based on their ability to be affected by environmental regulations. Fossil fuel energy consumption is inherently tied to environmental regulations as it is generally the type of energy whose production is curbed or capped by new regulations, regardless of stringency. In the context of this research paper, regulatory stringency pertains to the extent to which their employment is planned to curb emissions, not to the extensiveness of their penalties on firms which do not hold themselves to these caps. Emissions from transport is another emission source which is generally targeted by environmental regulations. Stricter regulations will prohibit vehicle manufacturers from producing vehicles that do not run as clean as possible. These regulations may also set a standard for domestic gas mixes which burn cleaner regardless of vehicle composition. Regulatory quality rank is an estimate crafted by the World Bank. Regulatory quality captures perceptions of the ability of the government to formulate and implement sound policies and regulations that permit and promote private sector development [@KaufmannEtAl2011]. The percentile rank indicates the country's rank among all countries covered by the aggregate indicator. The rationale for the inclusion of the regulatory quality rank as a regulatory stringency covariate pertains to a government's tendency to support private sector development [@WorldBank]. Increased private sector development generally leads to increases in emissions due to manufacturing of materials and construction, including the emissions produced by the new office or factory. Thus, an increase in regulatory quality rank may lead to an increase in environmental degradation.
+
+While creating the dataset, the variables for total greenhouse gas emissions (TGE) and GDP per capita, PPP (GPPP) were modified so that they measured in 10,000s (TGEp) and 1,000s (GPPPp) so that their range in histograms and regressions are easier to understand and manipulate. These variables were also modified to represent two additional lag variables. Because of their macro and auto-correlational characteristics, each additional observation in total greenhouse gas emissions and GDP per capita, PPP may be affected by the previous observation, that is, the next year's emissions and GDP are affected by the previous year's emissions and GDP. Creating a lag variable attempts to avoid this potential macroeconomic issue by moving each observation for these variables back one year.
+
+To account for the auto-correlation bias inherent to panel data and pooled regressions, I de-meaned the data for each variable to remove any source of variation across groups to only work with variation within each group. This de-meaned data is mutated into new variables.
+
+$\tilde{\text{Y}_{it}} = \beta_1\tilde{X}_{it} + \tilde\epsilon_{it}$
+
+De-meaning each variable in my dataset demonstrates the intuition behind fixed effects, converting all data to deviations from the mean of each group. All groups are thus centered at 0 and each observation represents a deviation away from the mean. This allows for the comparing of differences within groups over time while ignoring all differences between groups.
+
+## Preliminary Data Analysis
+
+In order to view the data from a better perspective, I created a correlation heatmap to understand the relationship between each of the variables, displayed in Figure 2. The results of this heatmap revealed interesting findings about the dataset.
+
+Most jarrily, there was a very weak relationship between fossil fuel energy consumption and total greenhouse gas emissions. The weakness of this correlation is troubling as simple economic inferencing would lead one to believe that changes in the consumption of fossil fuels would have a strong impact on the total amount of emissions. To further investigate this relationship, I created a histogram to determine a regression line. Displayed in Figure 3, the histogram revealed that this relationship is, in fact, quite small, albeit positive. This weak relationship is due in large part to Brazil and India's extensive levels of total greenhouse gas emissions while consuming relatively small amounts of fossil fuels over the years in the dataset.
+
+The heatmap also revealed, as suspected due to the EKC hypothesis, a somewhat small but positive relationship between GDP per capita and total greenhouse gas emissions. This relationship is further established through a histogram, displayed in Figure 4. From the results of the histogram, it is clear to see the relationship between the two variables is greatly affect by the Brazil and India. Brazil experiences very high levels of GDP per capita while also production a large amount of emissions, skewing the regression line higher. India also produces a large amount of emissions compared to the other developing countries but does not produce nearly as much GDP per capita, acting as a form of statistical counterweight for Brazil's skyrocketing GDP. The influence of these two countries can be further visualized through a segmented histogram, displayed in Figure 5. In this graph, India's GDP can be seen to be as low as Kenya's, yet they produce several times more emissions.
+
+Emissions from transport had one of the strongest relationships with total greenhouse gas emissions, second only to trade as a percentage of GDP. Strangely, however, these variables had negative effect on emissions. Due to economic inferencing, positive changes in these variables were believed to also cause positive changes in emissions. However, Figures 6 and 7 show this relationship is quite strong and negative, due in large part to Indonesia, India, and Brazil. In Figure 6, brazil is shown to produce relatively high amounts of greenhouse gas emissions with a modest amount coming from transport. India, however, produces relatively the same amount of emission as Brazil over time with comparably less of these emissions coming from transport. Indonesia, as well, produces a slightly smaller amount of emissions but only a relatively small amount comes from transport. However, in Figure 7, the relationship between emissions from transport and trade as a percentage of GDP does not mirror the one found in Figure 6. Both India and Indonesia are shown to have a relatively small ratio of their GDP relate to trade. Brazil's ratio, however, is shown to be even smaller than both India and Indonesia, despite their level of emissions from transport being far higher than any of the other countries besides Sri Lanka who produces far less total emissions. Due to Vietnam's extremely high percentage of trade with virtually no total emissions or emissions from transport, Brazil's bizarre case would suggest they run far more total vehicles and dirty-running vehicles than other countries.
+
+Regulatory quality rank also had a somewhat small but positive effect on total greenhouse gas emissions. Figure 9 displays this relationship in greater depth through a histogram. Yet again, Brazil and India were shown to have the greatest impact on the relationship. Over time, Brazil maintained a high regulatory quality rank while continuing to produce the highest amounts of emissions. India also produced some of the highest levels of emissions compared to the other countries but only maintained a middle-of-the-pack regulatory quality rank. Several countries, including, Bolivia, Pakistan, and Vietnam maintained very low regulatory quality ranks over the years, however, there relatively small level of emission production did not skew the regression line down.
+
+Foreign direct investment, net inflows, was shown to have virtually no relationship with total greenhouse gas emission. Figure 10 reveals this lack of correlation is due in part to the influence of Brazil and India on the data. While Vietnam and Egypt displayed high levels of foreign direct investment in several years, their low levels of emissions could not affect the regression line. Brazil and India received relatively low levels of foreign direct investment inflows over all the years included. in the dataset. Their high levels of emissions forced the regression line to a statistically insignificant position
+
+Figure 11 displays the change in average total greenhouse gas emissions over time across all countries. Average emissions remained relatively low across all countries over time, decreasing only slightly in 2008, most likely due to a decrease in global production due to economic collapse. Average emission levels are most likely held so low due to the majority influence of included countries other than Brazil and India. Brazil and India were shown to have a massive influence over the relationships between total greenhouse gas emissions and all explanatory variables. Their high levels of emissions compared to the 8 other countries will most likely skew my regression results.
+
+## Regression Equation
+
+I chose to run a pooled least squares linear regression with two-way fixed effects to isolate the country and year effects.
+
+$\hat{Y}_{it} = \beta_0 + \beta_1{FDI}_{it} + \beta_2{GPPP}_{it} + \beta_3{TGDP}_{it} + \beta_4{RQR}_{it} + \beta_5{EFT}_{it} + \beta_6{FFEC}_{it} + \alpha_{i} + \theta_{t}$
+
+Running a pooled least squares regression without isolating the country and years effect will bias the data and produce results that do not accurately determine the true effects of the variables.
+
+# Empirical Analysis
+
+Table 3 displays the results of the omitted and multivariate regressions, as well as the omitted and multivariate regressions including lag-effected variables.
+
+Upon comparing the p-values and F statistics of the non-lag omitted and multivariate regressions, it can be observed that neither regression produced results significant enough to reject the null hypothesis. In fact, none of the regressions produced results significant to any degree. The non-lag omitted variable regression produced a more significant p-value and F statistic than the non-lag multivariate regression, suggesting the covariates for regulatory stringency only lessened the model's ability to predict changes in total greenhouse gas emissions. The T statistics for the non-covariate variable coefficients all decreased in significance in the multivariate regression, further suggesting the inclusion of the covariates do not improve the model's efficacy.
+
+In regards to the effect of specific explanatory variables, several interesting findings were observed. Net inflows of foreign direct investment was shown to slightly increase greenhouse gas emissions across all regressions, although the inclusion of the lag variables slightly increased this effect. This effect suggests increases in inflows of foreign direct investment from other countries also increase total greenhouse gas emissions. This positive effect provides evidence for the inference that foreign direct investment to developing countries may often come in the form of high-polluting firms from developed countries seeking areas of low environmental stringency. GDP per capita, PPP was shown to have the largest positive effect on emissions of all variables in the non-lag regressions. This effect was lessened, however, when adjusted by the lag-effect. While this effect does not prove the efficacy of the Environmental Kuznets Curve, it does provide some evidence for continued research into the model. As the theory states economies reach a certain threshold of GDP or GNI before environmental degradation begins to decrease, this positive effect - albeit statistically insignificant - found within these developing economies suggests this threshold is yet to be met. Trade as a percentage of GDP was shown to have a positive effect on emissions of the same intensity as foreign direct investment when lag variables were excluded. This effect is lessened by some margin in the omitted regression including lag variables and completely reversed in the multivariate regression including lag variables. This reversal in effect may be a result of a data error when creating the lag variables or an econometric issue arising form measuring another lag variable against another.
+
+The results of the regulatory stringency proxies is the most interesting aspect of the regressions. Contrary to an initial inference, regulatory quality rank had a negative effect on total greenhouse gas emissions in both the non-lag and lag multivariate regressions. This reversed effect may be the result of an incorrect inference regarding the ramifications of increased support in private sector development. This may also be the result of multidimensionality inherent to the regulatory quality rank variable. Changes in the regulatory quality rank may be affected exogenous variables which also have a negative effect on total greenhouse gas emissions. Emissions from transport were also shown to have a negative effect on total greenhouse gas emissions. However, much like regulatory quality rank, this effect was small and not significant to any degree. This strange reversal of assumed effect is more difficult to discern than regulatory quality rank as fossil fuel emissions in the form of burning gasoline should have a directly positive effect on total greenhouse gas emissions. An explanation for this phenomenon may exist in estimation problems inherent to the dataset from the World Bank. Fossil fuel energy consumption had a predictably positive - albeit small - effect on total greenhouse gas emissions. The small size and insignificance of its effect on total emissions may be a result of exogenous variables whose exclusion from the regression is decreasing the variable's effect.
+
+The lag regression result are interesting as they show significantly higher p-values than the non-lag regressions. The main rationale for the creation and inclusion of the lagged variables in a new regression was to increase the effectiveness of the model's predictability by decreasing auto-correlation bias. Their inclusion's inability to produce more significant results from the other explanatory variables suggests a calculation error or a deeper econometric issue in regard to the estimates provided by the World Bank dataset. Select variables did receive bumps to the significance of their t statistics with the inclusion of the lag variables. However, these bumps were only slight.
+
+# Conclusion
+
+By comparing and contrasting the results from the regression omitting the covariates for regulatory stringency and the regression including them, it is clear that the model's ability to predict greenhouse gas emissions did not improve with covariates' inclusion. This could suggest several new inferences about regulatory stringency and the data and variables used to quantify it.
+
+a.) The proxy variables used to quantify regulatory stringency do not effectively measure the true effect of environmental regulations. This would rationalize the insignificane of the multivariate regression compared to the omitted as it would not be an accurate model of regulations' effect on environmental degradation.
+
+b.) The influence of Brazil and India over the relationships between the dependent variables and explanatory variables in the dataset greatly skewed the results of the regressions. While their influence may not completely throw out the results produced by the model, their inclusion in the dataset is a notable impact.
+
+c.) The data collected from the World Bank may not have been accurate estimates of certain variables in developing countries. This would explain the strange results produced by certain coefficients, specifically emissions from transport having a negative effect on total greenhouse gas emissions despite contributing to fossil fuel consumption and output due to the production and burning of gasoline.
+
+d.) Regulatory stringency does not have a significant effect on environmental degradation in the form of greenhouse gas emission in developing countries. This explanation feels dubious as most environmental regulations aim to decrease emissions through the prohibition of high-polluting practices and the encouragement and subsidation of cleaner energies. Furthermore, developing countries receive higher amount of foreign direct investment inflows from developed countries looking to move their high-polluting factories and offices. Several of the countries included on the dataset - chiefly, Bolivia and Brazil - had very little environmental regulations against such a practice and other forms of pollutant sources. These countries also had some of the highest levels of foreign direct investment. However, Figure 6 displays that the connection between total greenhouse gas emissions and foreign direct investment inflows may not be strong enough to support this environmental economic inference, despite the small positive effect noted in the multivariate regression.
+
+More research is needed not only on regulatory stringency's effect on environmental degradation, but also on the most effective methods to measure or quantify regulatory stringency. Failing to measure stringency properly will continue to result in suspect model coefficients and may even lead to improper policy changes if the wrong method of measure becomes too widespread in mainstream economics.
+
+\clearpage
+
+# Figures
+
+## Figure 1: DAG Diagram
+
+```{r DAG Diagram, include=TRUE, fig.height=11, fig.width=12, echo=FALSE}
+regulatory_dag <- dagify(
+  TGEp ~ FFEC + EFT,
+  FFEC ~ EFT + RQR,
+  EFT ~ TGDP,
+  TGDP ~ RQR + FDI + GPPPp,
+  GPPPp ~ RQR + FDI,
+  FDI ~ RQR,
+  exposure = "TGEp",
+  outcome = "FFEC"
+) %>%
+  ggdag()+
+  theme_dag()
+
+regulatory_dag
+```
+
+\clearpage
+
+## Figure 2: Correlation Heatmap
+
+```{r Tile Heat Map Pretty, include=FALSE}
+library(reshape2)
+logalldatanewcor <- logalldatanew[, c(3,5,6,8,9,12,13)]
+cormat <- round(cor(logalldatanewcor), 2)
+melted_cormat <- melt(cormat)
+# Get lower triangle of the correlation matrix
+get_lower_tri <- function(cormat){
+        cormat[upper.tri(cormat)] <- NA
+        return(cormat)
+}
+
+# Get upper triangle of the correlation matrix
+get_upper_tri <- function(cormat){
+        cormat[lower.tri(cormat)] <- NA
+        return(cormat)
+}
+
+upper_tri <- get_upper_tri(cormat)
+lower_tri <- get_lower_tri(cormat)
+
+# Melt the correlation matrix
+melted_cormat_pretty <- melt(upper_tri, na.rm = TRUE)
+
+# Heatmap
+ggplot(data = melted_cormat_pretty, aes(Var2, Var1, fill=value))+
+        geom_tile(color = "white")+
+        scale_fill_gradient2(low = "blue", high = "red", mid = "white", midpoint = 0, limit = c(-1,1), space = "Lab", name="Correlation\nValue")+
+        theme_minimal()+
+        theme(axis.text.x = element_text(angle = 45, vjust = 1, size = 12, hjust = 1))+
+        coord_fixed()
+```
+
+```{r Reorder, include=FALSE}
+library(reshape2)
+#Reorder Heatmap
+reorder_cormat <- function(cormat){
+        # Use correlation between variables as distance
+        dd <- as.dist((1-cormat)/2)
+        hc <- hclust(dd)
+        cormat <- cormat[hc$order, hc$order]
+}
+
+# Reorder the matrix
+cormat <- reorder_cormat(cormat)
+upper_tri <- get_upper_tri(cormat)
+# Melt the correlation matrix
+melted_cormat <- melt(upper_tri, na.rm = TRUE)
+# Create the ggheatmap
+ggheatmap <- ggplot(melted_cormat, aes(Var2, Var1, fill = value))+
+        geom_tile(color = "white")+
+        scale_fill_gradient2(low = "blue", high = "red", mid = "white", midpoint = 0, limit = c(-1,1), space = "Lab", name = "Correlation Value")+
+        theme_minimal(base_size = 22)+
+        coord_fixed()+
+        geom_text(aes(Var2, Var1, label = value), color = "black", size = 8)+
+        theme(
+                axis.title.x = element_blank(),
+                axis.title.y = element_blank(),
+                panel.grid.major = element_blank(),
+                panel.background = element_blank(),
+                axis.ticks = element_blank(),
+                legend.justification = c(1,0),
+                legend.position = c(0.6,0.7),
+                legend.direction = "horizontal")+
+        guides(fill = guide_colorbar(barwidth = 7, barheight = 1, title.position = "top", title.hjust = 0.5))
+```
+
+```{r Heatmap Deployment, fig.height=11, fig.width=12, include=TRUE}
+ggheatmap
+```
+
+## Figure 3: De-Meaned Histogram (deTGEp v deFFEC)
+
+```{r De-Meaned TGE v FFEC, fig.height=11, fig.width=12, include=TRUE}
+ggplot(logalldataiso)+
+  aes(x = deTGEp,
+      y = deFFEC)+
+  geom_point(aes(color = Country),
+             size = 4)+
+  geom_smooth(method = "lm")+
+  labs(x = "Total Greenhouse Gas Emissions (10,000s)",
+       y = "Fossil Fuel Energy Consumption")+
+  theme_gray(base_size = 22)
+```
+
+\clearpage
+
+## Figure 4: De-Meaned Histogram (deTGEp v deGPPPp)
+
+```{r De-Meaned Non-log Histogram (TGE v GPPP), fig.height=11, fig.width=12, include=TRUE}
+ggplot(data=logalldataiso)+
+  aes(x = deTGEp,
+      y = deGPPPp)+
+  geom_point(aes(color = Country),
+             size = 4)+
+  geom_smooth(method = "lm")+
+  labs(x = "Total Greenhouse Gas Emissions (10,000s)",
+       y = "GDP per Capita, PPP (1,000s)")+
+  theme_gray(base_size = 22)
+```
+
+\clearpage
+
+## Figure 5: Segmented Histogram (avg_TGEp v avg_GPPPp)
+
+```{r Visualize Meaned Country Data (TGE v GPPP), fig.height=11, fig.width=12, include=TRUE}
+ggplot(data=means_countries)+
+        aes(x = fct_reorder(Country, avg_TGEp),
+            y = avg_GPPPp,
+            color = Country)+
+        geom_point(size = 4)+
+        geom_segment(aes(y=0,
+                         yend = avg_GPPPp,
+                         x = Country,
+                         xend = Country),
+                     size = 2)+
+        coord_flip()+
+        labs(x = "Countries by Average GDP per Capita, PPP (1,000s)",
+             y = "Average Total Greenhouse Gas Emissions (10,000s)")+
+        theme(legend.position = "none")+
+  theme_gray(base_size = 22)
+```
+
+\clearpage
+
+## Figure 6: De-Meaned Histogram (deTGEp v deEFT)
+
+```{r De-Meaned TGE v EFT, fig.height=11, fig.width=12, include=TRUE}
+ggplot(logalldataiso)+
+  aes(x = deTGEp,
+      y = deEFT)+
+  geom_point(aes(color = Country),
+             size = 4)+
+  geom_smooth(method = "lm")+
+  labs(x = "Total Greenhouse Gas Emissions (10,000s)",
+       y = "Emissions from Transport")+
+  theme_gray(base_size = 22)
+```
+
+\clearpage
+
+## Figure 7: De-Meaned Histogram (deTGEp v deTGDP)
+
+```{r De-Meaned TGE v TGDP, fig.height=11, fig.width=12, include=TRUE}
+ggplot(logalldataiso)+
+  aes(x = deTGEp,
+      y = deTGDP)+
+  geom_point(aes(color = Country),
+             size = 4)+
+  geom_smooth(method = "lm")+
+  labs(x = "Total Greenhouse Gas Emissions (10,000s)",
+       y = "Trade as % of GDP")+
+  theme_gray(base_size = 22)
+```
+
+\clearpage
+
+## Figure 8: De-Meaned Histogram (deTGEp v deRQR)
+
+```{r De-Meaned TGE v RQR, fig.height=11, fig.width=12, include=TRUE}
+ggplot(logalldataiso)+
+  aes(x = deTGEp,
+      y = deRQR)+
+  geom_point(aes(color = Country),
+             size = 4)+
+  geom_smooth(method = "lm")+
+  labs(x = "Total Greenhouse Gas Emissions (10,000s)",
+       y = "Regulatory Quality Rank")+
+  theme_gray(base_size = 22)
+```
+
+\clearpage
+
+## Figure 9: De-Meaned Histogram (deTGEp v deFDI)
+
+```{r De-Meaned TGE v FDI, fig.height=11, fig.width=12, include=TRUE}
+ggplot(logalldataiso)+
+  aes(x = deTGEp,
+      y = deFDI)+
+  geom_point(aes(color = Country),
+             size = 4)+
+  geom_smooth(method = "lm")+
+  labs(x = "Total Greenhouse Gas Emissions (10,000s)",
+       y = "Foreign Direct Investment, net Inflows")+
+  theme_gray(base_size = 22)
+```
+
+\clearpage
+
+## Figure 10: Year Effects Histogram (TGEp Over Time)
+
+```{r Visualization of Year Effects (TGEp Over Time), fig.height=11, fig.width=12, include=TRUE}
+ggplot(data=logalldatanew)+
+        aes(x = Years,
+            y = TGEp)+
+        geom_point(aes(color = Years),
+                   size = 3)+
+        geom_point(data = means_years,
+                   aes(x = Years,
+                       y = avg_TGEp),
+                   size = 7,
+                   color = "black")+
+        labs(x = "Year",
+             y = "Average log Total Greenhouse Gas Emissions")+
+        theme(legend.position = "none")+
+  theme_gray(base_size = 22)
+```
+
+\clearpage
+
+# Tables
+
+## Table 1: Variable List
+
+| Variable  | Description                                                                                                                                                                                                                                                            |
+|--------------------------------|----------------------------------------|
+| 'FDI'     | Foreign Direct Investment, net Inflows: DI equity flows in the reporting economy as percentage of GDP.                                                                                                                                                                 |
+| 'GPPPp'   | GDP per capita in 1000s as interpreted through the purchasing power parity (PPP).                                                                                                                                                                                      |
+| 'TGDP'    | Trade as percentage of GDP: sum of exports and imports of goods and services measured as a share of GDP.                                                                                                                                                               |
+| 'RQR'     | Regulatory Quality Rank: percentile rank indicates the country's rank among all countries covered by the aggregate indicator. Captures perceptions of the ability of the government to formulate sound regulations that permit and promote private sector development. |
+| 'EFT'     | CO2 Emissions from Transport: emissions from the combustion of fuel for all transport activity, regardless of the sector, except for international aviation.                                                                                                           |
+| 'FFEC'    | Fossil Fuel Energy Consumption: percent of total energy consumption comprising coal, oil, petroleum, and natural gas products.                                                                                                                                         |
+| 'REO'     | Renewable Electricity Output: share of electricity generated by renewable power plants in total electricity generated by all types of plants.                                                                                                                          |
+| 'REC'     | Renewable Energy Consumption: share of renewable energy in total final energy consumption.                                                                                                                                                                             |
+| 'TGEp'    | Total Greenhouse Gas Emissions in 10000 kilotons of C02: CO2 equivalent are composed of CO2 total excluding short-cycle biomass burning but including other biomass burning, all anthropogenic CH4 sources, N2O sources and F-gases.                                   |
+| 'de(var)' | All variables with the suffix 'de' represent the de-meaned counterparts of the original variables.                                                                                                                                                                     |
+
+\clearpage
+
+## Table 2: Summary Statistics
+
+```{r Summary Statistics, include=TRUE, echo=FALSE}
+summarydata <- logalldataiso %>%
+  select_("-REO", "-REC", "-deREO", "-deREC", "-TGE", "-GPPP")
+
+summary(summarydata)
+```
+
+\clearpage
+
+## Table 3: Regression Tables
+
+```{r Regression Tables - Fixed Effects, include=TRUE, echo=FALSE}
+omitted_Rreg_fixed <- plm(TGEp ~ FDI + GPPPp + TGDP, data = logalldatanew, index=c("Country","Years"), method = "within", effect = "twoways")
+
+lagomitted_Rreg_fixed <- plm(TGEp ~ FDI + lagGPPPp + lagTGDP, data = logalldatalag, index = c("Country","Years"), method = "within", effect = "twoways")
+
+multivariate_Rreg_fixed <- plm(TGEp ~ FDI + GPPPp + TGDP + RQR + EFT + FFEC, data = logalldatanew, index = c("Country","Years"), method="within", effect = "twoways")
+
+lagmultivaraite_Rreg_fixed <- plm(TGEp ~ FDI + lagGPPPp + lagTGDP + RQR + EFT + FFEC, data = logalldatalag, index = c("Country","Years"), method = "within", effect = "twoways")
+
+huxreg("Omitted" = omitted_Rreg_fixed, "Lag Omitted" = lagomitted_Rreg_fixed, "Multivariate" = multivariate_Rreg_fixed, "Lag Multivaraite" = lagmultivaraite_Rreg_fixed, 
+       statistics = c("N" = "nobs",
+                      "R-squared" = "r.squared",
+                      "F statistic" = "statistic",
+                      "P value" = "p.value"),
+       stars = c('*' = 0.1, '**' = 0.05, '***' = 0.01),
+       error_format = "[{statistic}]",
+       note = "{stars}. T statistics in brackets.",
+       number_format = 4)
+```
+
+\clearpage
+
+# References
